@@ -4,10 +4,13 @@ Implements the "container avail" utility for searching images published on the s
 repository.
 
 # Usage instructions for using "container avail" utility
-The ```container``` utility should be considered a working prototype.
+The ```container``` utility should be considered a working prototype. Since it is currently only a single-file script, 
+we haven't created an installer. The utility is designed to run on systems including Galaxy CVMFS clients, 
+but it will run most systems even if CVMFS has not been installed and configured to use the Galaxy CVMFS repositories.
 
-Python 3.X needs to be installed on the target system. The script has been tested with versions 3.6 - 3.10 in RHEL,
-Ubuntu, Windows and MacOS. The container script uses only the standard libraries.
+Note that Python 3.X needs to be installed on the target system for the ```container``` script to run. 
+The script has been tested with versions 3.6 - 3.10 in RHEL, Ubuntu, Windows and MacOS. 
+The container script uses only the standard libraries for maximum portability.
 
 The Python script ```container``` in this repository should be copied into /usr/local/sbin or similar script directory 
 included in the user's PATH environment variable, and executable permissions set using 
@@ -52,7 +55,9 @@ Note that the '*' wildcard character should be quoted to avoid evaluation in the
 
 # Attributions
 
-The initial version of the container utility was written by Alex Ip of AARNet Pty. Ltd. [@alex-ip](https://github.com/alex-ip)
+The initial version of the container utility was written by Alex Ip of AARNet Pty. Ltd. 
+[@alex-ip](https://github.com/alex-ip) 
+<https://orcid.org/0000-0001-8937-8904>
 
 The guideline documentation template is supported by the Australian BioCommons via Bioplatforms Australia funding, the 
 Australian Research Data Commons (https://doi.org/10.47486/PL105) and the Queensland Government RICF programme. 
