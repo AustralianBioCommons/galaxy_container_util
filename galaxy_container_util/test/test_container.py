@@ -3,11 +3,10 @@ import os
 import shutil
 import tempfile
 import unittest
+import zipfile
 from datetime import datetime
 from importlib.machinery import SourceFileLoader
 from importlib.util import spec_from_loader, module_from_spec
-from pprint import pprint
-import zipfile
 
 VERBOSE = False
 TEMP_DIR = os.path.join(tempfile.gettempdir(), 'container_test')
