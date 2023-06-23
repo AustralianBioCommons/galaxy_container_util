@@ -1,0 +1,354 @@
+#!/usr/bin/python3
+
+import argparse
+import datetime
+import json
+import os
+import re
+import stat
+import subprocess
+import tempfile
+import urllib.request
+
+from enum import IntEnum
+
+# Define field indices for image record
+FieldIndex = IntEnum(
+    'FieldIndex', [
+        'tool_name',
+        'sortable_subversion_list',
+        'image_build',
+        'image_variant',
+        'version_string',
+        'variant_string',
+        'image_bytes',
+        'image_datetime',
+        'image_path',
+    ],
+    start=0
+)
+
+VERSION = "0.0.2"
+LIST_URL = "https://ae-1704-cvmfs-uat-s3.s3.ap-southeast-2.amazonaws.com/singularity.galaxyproject.org/singularity.galaxyproject.org_list.txt"
+REPO = "singularity.galaxyproject.org"
+SUBDIRECTORY = "all"
+COMMANDS = ['avail']
+CACHE_JSON_PATH = os.path.join(tempfile.gettempdir(), "singularity.galaxyproject.org_images.json")
+MAX_HOURS = 1
+INT_STRING_LENGTH = 10  # Number of characters to pad integer sub-versions for sorting
+
+# Regular expressions matching valid name formats in order of descending completeness
+NAME_REGEXES = [re.compile(regex, re.IGNORECASE)
+                for regex in
+                [
+                    r'(?P<basename>.*)\:(?P<version>.*)--(?P<variant>.*)$',  # Version and variant
+                    r'(?P<basename>.*)\:(?P<version>.*)-(?P<variant>\d+)$',  # No variant string, only build
+                    r'(?P<basename>.*)\:(?P<version>.*)$',  # No variant
+                ]
+                ]
+
+RW_ALL = stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH | stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH
+
+
+def parse_image_info(line_source):
+    """
+    Process all lines from line_source into a nested dict keyed by base_image, version & variant
+    Lines are in format "image_name> <image_bytes> <image modification date> <image modification time>"
+    :param list_url:
+    :return: dict
+    """
+    image_info_dict = {}
+    for line in line_source:
+        if type(line) == bytes:
+            line = line.decode('utf-8')
+
+        image_info = line.strip().split(' ')
+
+        if len(image_info) < 4:
+            continue
+
+        image_name = image_info[0]
+        image_bytes = image_info[1]
+        # fromisoformat only supported in Python>=3.7
+        image_datetime = datetime.datetime.strptime(f"{image_info[2]}T{image_info[3].split('.')[0]}",
+                                                    '%Y-%m-%dT%H:%M:%S')
+
+        # Parse image name
+        tool_name = ""
+        image_version = ""
+        image_variant = ""
+        match = None
+        for regex in NAME_REGEXES:
+            match = re.match(regex, image_name)
+            if not match:
+                continue
+
+            tool_name = match.group('basename')  # Should always have a basename
+
+            try:
+                image_version = match.group('version')
+            except IndexError:
+                pass
+
+            try:
+                image_variant = match.group('variant')
+            except IndexError:
+                pass
+
+            # print(regex)
+            break
+
+        if not match:
+            # print(f'Unable to parse image name {image_name}')
+            continue
+
+        # print(image_name, tool_name, image_version, image_variant, image_bytes, image_datetime)
+
+        image_dict = image_info_dict.get(tool_name) or {}
+        if not image_dict:
+            image_info_dict[tool_name] = image_dict
+
+        image_version_dict = image_dict.get(image_version) or {}
+        if not image_version_dict:
+            image_dict[image_version] = image_version_dict
+
+        image_version_dict[image_variant] = [image_name, image_bytes, image_datetime.isoformat()]
+
+    return image_info_dict
+
+
+def get_image_info(cache_json_path, image_dir, list_url, min_cache_datetime, args):
+    """
+    Function to return a nested dict keyed by base_image, version & variant
+    """
+    cache_is_stale = (not os.path.isfile(cache_json_path)
+                      or datetime.datetime.fromtimestamp(os.path.getmtime(cache_json_path)) <= min_cache_datetime)
+
+    # Return cached dict if no forced refresh and cache is not stale
+    if (not args.refresh
+            and not cache_is_stale):
+        # if not quiet:
+        #     print(f"Retrieving cached list from {CACHE_JSON_PATH}")
+        with open(cache_json_path) as json_file:
+            return json.loads(json_file.read())
+
+    if os.name == 'posix' and os.path.isdir(image_dir):  # Attempt to list CVMFS directory
+        if not args.quiet:
+            print(f"Listing CVMFS directory {image_dir}")
+        command = f"""ls --full-time -s {image_dir} | awk '{{print $10 " " $6 " " $7 " " $8}}'"""
+        process = subprocess.Popen(['bash', '-c', command], stdout=subprocess.PIPE)
+        list_source = process.stdout
+    else:  # Fetch remote list
+        if not args.quiet:
+            print(f"Retrieving remote image list from {list_url}")
+        list_source = urllib.request.urlopen(list_url)
+
+    image_info = parse_image_info(list_source)
+
+    if args.refresh or cache_is_stale:
+        if not args.quiet:
+            print(f"Updating cached image info file {cache_json_path}")
+    with open(cache_json_path, 'w') as json_file:
+        json_file.write(json.dumps(image_info))
+        os.chmod(cache_json_path, RW_ALL)
+    return image_info
+
+
+def get_sort_function(args):
+    """
+    Return sort function for results
+    """
+    if args.modified:  # Sort by ascending modification datatime
+        return lambda info_list: (info_list[FieldIndex.tool_name],
+                                  info_list[FieldIndex.image_datetime])
+    elif args.size:  # Sort by ascending size
+        return lambda info_list: (info_list[FieldIndex.tool_name],
+                                  info_list[FieldIndex.image_bytes])
+    else:  # Default sort by name, version & build
+        return lambda info_list: (info_list[FieldIndex.tool_name],
+                                  info_list[FieldIndex.sortable_subversion_list],
+                                  info_list[FieldIndex.image_build],
+                                  )
+
+
+def output_global_stats(image_info):
+    """
+    Output global statistics for image info
+    """
+    version_count = sum([len(versions) for versions in image_info.values()])
+    variant_count = sum(
+        [sum([len(variants) for variants in versions.values()]) for versions in image_info.values()])
+    print(f"{len(image_info)} base images, {version_count} versions and {variant_count} variants found")
+
+
+def filter_image_info(image_info_dict, tool_search_strings):
+    """Filter image info dict using regular expression from tool search strings"""
+    search_regex = re.compile(
+        '|'.join(["""^{}$""".format(tool_search_string.replace('.', '\\.').replace('*', '.*'))
+                  for tool_search_string in tool_search_strings]),
+        re.IGNORECASE)
+    result_dict = {key: value
+                   for key, value in image_info_dict.items()
+                   if re.match(search_regex, key)}
+    # pprint(results)
+    return result_dict
+
+
+def make_sortable_list(result_info_dict, sort_function, args):
+    """Create sortable list from nested dict keyed by base images, versions and variants"""
+    result_list = []
+    for tool_name, image_values in result_info_dict.items():
+        # Create sortable version list
+        version_list = []
+        for version_string, version_values in image_values.items():
+            # Create sortable list of subversion strings with integers padded with leading zeroes
+            sortable_subversion_list = [subversion.strip().zfill(INT_STRING_LENGTH)
+                                        if re.match(r'\d+$', subversion.strip())
+                                        else subversion.strip()
+                                        for subversion in version_string.split('.')
+                                        ]
+            for variant_string, variant_values in version_values.items():
+                image_variant = ""
+                image_build = 0
+                if variant_string:
+                    variant_parts = variant_string.split('_')
+                    if len(variant_parts) == 2:
+                        image_variant = variant_parts[0]
+                        try:
+                            image_build = int(re.match(r'(\d+).*', variant_parts[1]).group(1))
+                        except AttributeError:
+                            pass
+                    elif len(
+                            variant_parts) == 1:  # No underscore in variant string - could be either variant or build
+                        try:
+                            image_build = int(re.match(r'(\d+).*', variant_parts[0]).group(0))
+                        except AttributeError:
+                            image_variant = variant_parts[0]
+
+                image_path = f"/cvmfs/{REPO}/{SUBDIRECTORY}/{variant_values[0]}"
+                image_bytes = variant_values[1]
+                image_datetime = variant_values[2]
+
+                # Filter by version if supplied
+                if args.version and not re.match(f'{args.version}($|\..*)', version_string, re.IGNORECASE):
+                    continue
+
+                # Field order must match FieldIndex enum
+                version_list.append(
+                    (tool_name,
+                     sortable_subversion_list,
+                     image_build,
+                     image_variant,
+                     version_string,
+                     variant_string,
+                     image_bytes,
+                     image_datetime,
+                     image_path)
+                )
+
+        version_list.sort()  # Default sort by tool_name, sortable_subversion_list, image_build, etc.
+        latest_version_string = '.'.join(
+            [subversion  # Use only up to first three subversions
+             for subversion in version_list[-1][FieldIndex.version_string].split('.')[:3]
+             if re.match(r'\d+$', subversion)  # Disregard string subversions
+             ])
+
+        if not args.quiet:
+            print(f'{tool_name} {"" if args.version else "latest "}version: {latest_version_string}')
+
+        # Re-sort list by datetime if required
+        if sort_function:
+            version_list.sort(key=sort_function)
+
+        if args.latest:
+            result_list.append(version_list[-1])
+        elif args.all:
+            result_list += version_list
+        else:  # Default to filtering on latest version
+            result_list += [record
+                            for record in version_list
+                            if record[FieldIndex.version_string].startswith(latest_version_string)]
+    return result_list
+
+
+def output_result_list(result_list, sort_function, args):
+    """Output result list sorted by sort_function"""
+    if not args.quiet:
+        print(f'{len(result_list)} matching images found:')
+
+    for image_record in sorted(result_list, key=sort_function):
+        print(image_record[FieldIndex.image_path])
+        if not args.quiet:
+            print(f'\tTool name: {image_record[FieldIndex.tool_name]}, '
+                  f'Version: {image_record[FieldIndex.version_string] or """"""""}, '
+                  f'Variant: {image_record[FieldIndex.variant_string] or """"""""}, '
+                  f'Size: {image_record[FieldIndex.image_bytes]} bytes, '
+                  f'Last modified: {image_record[FieldIndex.image_datetime]}')
+
+
+def main():
+    """
+    Main function to process command
+    :return: None
+    """
+    script_name = os.path.splitext(os.path.basename(__file__))[0]
+
+    parser = argparse.ArgumentParser(
+        description=f'{script_name} v{VERSION} - "{script_name} avail" helps you locate and access thousands of '
+                    "container images available via a read-only filesystem (CERN VM-FS). "
+                    "This service is currently available at the NCI and Pawsey Australian Compute Facilities")
+    parser.add_argument("-q", "--quiet", action="store_true", help="Suppress optional output and show only image paths")
+    parser.add_argument("-r", "--refresh", action="store_true", help="Force cache refresh")
+    output_group = parser.add_mutually_exclusive_group()
+    output_group.add_argument("-a", "--all", action="store_true",
+                              help="Show ALL images for each tool")
+    output_group.add_argument("-l", "--latest", action="store_true",
+                              help="Show only latest image by version and build, or by date modified if --modified flag used")
+    sort_group = parser.add_mutually_exclusive_group()
+    sort_group.add_argument("-m", "--modified", action="store_true",
+                            help="Sort by ascending file modification datetime instead of version and build (DANGEROUS!)")
+    sort_group.add_argument("-s", "--size", action="store_true",
+                            help="Sort by ascending file size instead of version and build")
+    parser.add_argument("-v", "--version", type=str, help=f'Filter images by version')
+    parser.add_argument('arguments', nargs='*',
+                        help=f"<command ({', '.join(COMMANDS)})> <tool name search string(s) "
+                             f"(use * for wildcard - must be quoted for *nix)>")
+    args = parser.parse_args()
+
+    if not args.arguments:
+        parser.print_usage()
+        exit(0)
+
+    command = args.arguments[0].lower()
+
+    if command == 'avail':  # Only "avail" command supported right now
+        # Default to showing everything if no tool search string provided
+        tool_search_strings = args.arguments[1:] or ['*']
+
+        image_dir = f"/cvmfs/{REPO}/{SUBDIRECTORY}"
+
+        image_info = get_image_info(cache_json_path=CACHE_JSON_PATH,
+                                    image_dir=image_dir,
+                                    list_url=LIST_URL,
+                                    min_cache_datetime=(
+                                            datetime.datetime.now() - datetime.timedelta(hours=MAX_HOURS)),
+                                    args=args)
+        # pprint(image_info)
+
+        if not args.quiet:
+            output_global_stats(image_info)
+
+        sort_function = get_sort_function(args)
+
+        result_image_info = filter_image_info(image_info, tool_search_strings)
+
+        result_list = make_sortable_list(result_image_info, sort_function, args)
+
+        output_result_list(result_list, sort_function, args)
+    else:
+        print(f'Unrecognised arguments: "{" ".join(args.arguments)}"')
+        exit(1)
+
+
+if __name__ == '__main__':
+    main()
