@@ -12,9 +12,9 @@ import urllib.request
 
 from enum import IntEnum
 
-# Define field indices for image record
 from typing import Dict, Callable, List, Iterable, Tuple
 
+# Define field indices for image record
 FieldIndex = IntEnum(
     'FieldIndex', [
         'tool_name',
