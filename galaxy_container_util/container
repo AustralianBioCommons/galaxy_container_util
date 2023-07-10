@@ -13,7 +13,7 @@ import urllib.request
 from enum import IntEnum
 
 # Define field indices for image record
-from typing import Dict, Callable, List, Iterable
+from typing import Dict, Callable, List, Iterable, Tuple
 
 FieldIndex = IntEnum(
     'FieldIndex', [
@@ -53,7 +53,7 @@ NAME_REGEXES = [re.compile(regex, re.IGNORECASE)
 RW_ALL = stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH | stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH
 
 
-def parse_image_info(line_source: Iterable) -> Dict:
+def parse_image_info(line_source: Iterable) -> Dict[str, Dict[str, Dict[str, Tuple[str, int, str]]]]:
     """
     Process all lines from line_source into a nested dict keyed by base_image, version & variant
     Lines are in format "image_name> <image_bytes> <image modification date> <image modification time>"
@@ -115,7 +115,7 @@ def parse_image_info(line_source: Iterable) -> Dict:
         if not image_version_dict:
             image_dict[image_version] = image_version_dict
 
-        image_version_dict[image_variant] = [image_name, image_bytes, image_datetime.isoformat()]
+        image_version_dict[image_variant] = (image_name, image_bytes, image_datetime.isoformat())
 
     return image_info_dict
 
@@ -125,7 +125,7 @@ def get_image_info(cache_json_path: str,
                    list_url: str,
                    min_cache_datetime: datetime.datetime,
                    args: argparse.Namespace
-                   ) -> Dict:
+                   ) -> Dict[str, Dict[str, Dict[str, Tuple[str, int, str]]]]:
     """
     Function to return a nested dict keyed by base_image, version & variant
     """
@@ -162,7 +162,9 @@ def get_image_info(cache_json_path: str,
     return image_info
 
 
-def get_sort_function(args: argparse.Namespace) -> Callable:
+def get_sort_function(args: argparse.Namespace
+                      ) -> Callable[[Tuple[str, List[str], int, str, str, str, int, str, str]],
+                                    Tuple]:
     """
     Return sort function for results
     """
@@ -179,7 +181,7 @@ def get_sort_function(args: argparse.Namespace) -> Callable:
                                   )
 
 
-def output_global_stats(image_info: Dict) -> None:
+def output_global_stats(image_info: Dict[str, Dict[str, Dict[str, Tuple[str, int, str]]]]) -> None:
     """
     Output global statistics for image info
     """
@@ -189,9 +191,9 @@ def output_global_stats(image_info: Dict) -> None:
     print(f"{len(image_info)} base images, {version_count} versions and {variant_count} variants found")
 
 
-def filter_image_info(image_info_dict: Dict,
+def filter_image_info(image_info_dict: Dict[str, Dict[str, Dict[str, Tuple[str, int, str]]]],
                       tool_search_strings: List[str]
-                      ) -> Dict:
+                      ) -> Dict[str, Dict[str, Dict[str, Tuple[str, int, str]]]]:
     """Filter image info dict using regular expression from tool search strings"""
     search_regex = re.compile(
         '|'.join(["""^{}$""".format(tool_search_string.replace('.', '\\.').replace('*', '.*'))
@@ -204,15 +206,16 @@ def filter_image_info(image_info_dict: Dict,
     return result_dict
 
 
-def make_sortable_list(result_info_dict: Dict,
-                       sort_function: Callable,
+def make_sortable_list(result_info_dict: Dict[str, Dict[str, Dict[str, Tuple[str, int, str]]]],
+                       sort_function: Callable[[Tuple[str, List[str], int, str, str, str, int, str, str]],
+                                               Tuple],
                        args: argparse.Namespace
-                       ) -> List:
+                       ) -> List[Tuple[str, List[str], int, str, str, str, int, str, str]]:
     """Create sortable list from nested dict keyed by base images, versions and variants"""
     result_list = []
     for tool_name, image_values in result_info_dict.items():
         # Create sortable version list
-        version_list = []
+        version_list: List[Tuple[str, List[str], int, str, str, str, int, str, str]] = []
         for version_string, version_values in image_values.items():
             # Create sortable list of subversion strings with integers padded with leading zeroes
             sortable_subversion_list = [subversion.strip().zfill(INT_STRING_LENGTH)
@@ -243,7 +246,7 @@ def make_sortable_list(result_info_dict: Dict,
                 image_datetime = variant_values[2]
 
                 # Filter by version if supplied
-                if args.version and not re.match(f'{args.version}($|\..*)', version_string, re.IGNORECASE):
+                if args.version and not re.match(fr'{args.version}($|\..*)', version_string, re.IGNORECASE):
                     continue
 
                 # Field order must match FieldIndex enum
@@ -270,8 +273,7 @@ def make_sortable_list(result_info_dict: Dict,
             print(f'{tool_name} {"" if args.version else "latest "}version: {latest_version_string}')
 
         # Re-sort list by datetime if required
-        if sort_function:
-            version_list.sort(key=sort_function)
+        version_list.sort(key=sort_function)
 
         if args.latest:
             result_list.append(version_list[-1])
@@ -285,7 +287,8 @@ def make_sortable_list(result_info_dict: Dict,
 
 
 def output_result_list(result_list: List,
-                       sort_function: Callable,
+                       sort_function: Callable[[Tuple[str, List[str], int, str, str, str, int, str, str]],
+                                               Tuple],
                        args: argparse.Namespace
                        ) -> None:
     """Output result list sorted by sort_function"""
@@ -302,7 +305,7 @@ def output_result_list(result_list: List,
                   f'Last modified: {image_record[FieldIndex.image_datetime]}')
 
 
-def main():
+def main() -> None:
     """
     Main function to process command
     :return: None
