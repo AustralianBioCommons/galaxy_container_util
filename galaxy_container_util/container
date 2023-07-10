@@ -13,6 +13,8 @@ import urllib.request
 from enum import IntEnum
 
 # Define field indices for image record
+from typing import Dict, Callable, List, Iterable
+
 FieldIndex = IntEnum(
     'FieldIndex', [
         'tool_name',
@@ -29,7 +31,8 @@ FieldIndex = IntEnum(
 )
 
 VERSION = "0.0.2"
-LIST_URL = "https://ae-1704-cvmfs-uat-s3.s3.ap-southeast-2.amazonaws.com/singularity.galaxyproject.org/singularity.galaxyproject.org_list.txt"
+LIST_URL = "https://ae-1704-cvmfs-uat-s3.s3.ap-southeast-2.amazonaws.com/singularity.galaxyproject.org/" \
+           "singularity.galaxyproject.org_list.txt"
 REPO = "singularity.galaxyproject.org"
 SUBDIRECTORY = "all"
 COMMANDS = ['avail']
@@ -50,11 +53,11 @@ NAME_REGEXES = [re.compile(regex, re.IGNORECASE)
 RW_ALL = stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH | stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH
 
 
-def parse_image_info(line_source):
+def parse_image_info(line_source: Iterable) -> Dict:
     """
     Process all lines from line_source into a nested dict keyed by base_image, version & variant
     Lines are in format "image_name> <image_bytes> <image modification date> <image modification time>"
-    :param list_url:
+    :param line_source:
     :return: dict
     """
     image_info_dict = {}
@@ -117,7 +120,12 @@ def parse_image_info(line_source):
     return image_info_dict
 
 
-def get_image_info(cache_json_path, image_dir, list_url, min_cache_datetime, args):
+def get_image_info(cache_json_path: str,
+                   image_dir: str,
+                   list_url: str,
+                   min_cache_datetime: datetime.datetime,
+                   args: argparse.Namespace
+                   ) -> Dict:
     """
     Function to return a nested dict keyed by base_image, version & variant
     """
@@ -154,7 +162,7 @@ def get_image_info(cache_json_path, image_dir, list_url, min_cache_datetime, arg
     return image_info
 
 
-def get_sort_function(args):
+def get_sort_function(args: argparse.Namespace) -> Callable:
     """
     Return sort function for results
     """
@@ -171,7 +179,7 @@ def get_sort_function(args):
                                   )
 
 
-def output_global_stats(image_info):
+def output_global_stats(image_info: Dict) -> None:
     """
     Output global statistics for image info
     """
@@ -181,7 +189,9 @@ def output_global_stats(image_info):
     print(f"{len(image_info)} base images, {version_count} versions and {variant_count} variants found")
 
 
-def filter_image_info(image_info_dict, tool_search_strings):
+def filter_image_info(image_info_dict: Dict,
+                      tool_search_strings: List[str]
+                      ) -> Dict:
     """Filter image info dict using regular expression from tool search strings"""
     search_regex = re.compile(
         '|'.join(["""^{}$""".format(tool_search_string.replace('.', '\\.').replace('*', '.*'))
@@ -194,7 +204,10 @@ def filter_image_info(image_info_dict, tool_search_strings):
     return result_dict
 
 
-def make_sortable_list(result_info_dict, sort_function, args):
+def make_sortable_list(result_info_dict: Dict,
+                       sort_function: Callable,
+                       args: argparse.Namespace
+                       ) -> List:
     """Create sortable list from nested dict keyed by base images, versions and variants"""
     result_list = []
     for tool_name, image_values in result_info_dict.items():
@@ -271,7 +284,10 @@ def make_sortable_list(result_info_dict, sort_function, args):
     return result_list
 
 
-def output_result_list(result_list, sort_function, args):
+def output_result_list(result_list: List,
+                       sort_function: Callable,
+                       args: argparse.Namespace
+                       ) -> None:
     """Output result list sorted by sort_function"""
     if not args.quiet:
         print(f'{len(result_list)} matching images found:')
@@ -303,17 +319,19 @@ def main():
     output_group.add_argument("-a", "--all", action="store_true",
                               help="Show ALL images for each tool")
     output_group.add_argument("-l", "--latest", action="store_true",
-                              help="Show only latest image by version and build, or by date modified if --modified flag used")
+                              help="Show only latest image by version and build, "
+                                   "or by date modified if --modified flag used")
     sort_group = parser.add_mutually_exclusive_group()
     sort_group.add_argument("-m", "--modified", action="store_true",
-                            help="Sort by ascending file modification datetime instead of version and build (DANGEROUS!)")
+                            help="Sort by ascending file modification datetime instead of version and build "
+                                 "(DANGEROUS!)")
     sort_group.add_argument("-s", "--size", action="store_true",
                             help="Sort by ascending file size instead of version and build")
     parser.add_argument("-v", "--version", type=str, help=f'Filter images by version')
     parser.add_argument('arguments', nargs='*',
                         help=f"<command ({', '.join(COMMANDS)})> <tool name search string(s) "
                              f"(use * for wildcard - must be quoted for *nix)>")
-    args = parser.parse_args()
+    args: argparse.Namespace = parser.parse_args()
 
     if not args.arguments:
         parser.print_usage()
