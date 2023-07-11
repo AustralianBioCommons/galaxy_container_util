@@ -14,18 +14,18 @@ from enum import IntEnum
 
 from typing import Dict, Callable, List, Iterable, Tuple
 
-# Define field indices for image record
+# Define field indices for sortable image record tuple
 FieldIndex = IntEnum(
     'FieldIndex', [
-        'tool_name',
-        'sortable_subversion_list',
-        'image_build',
-        'image_variant',
-        'version_string',
-        'variant_string',
-        'image_bytes',
-        'image_datetime',
-        'image_path',
+        'tool_name',  # str
+        'sortable_subversion_list',  # List[str]
+        'image_build',  # int
+        'image_variant',  # str
+        'version_string',  # str
+        'variant_string',  # str
+        'image_bytes',  # int
+        'image_datetime',  # str - NOT datetime.datetime
+        'image_path',  # str
     ],
     start=0
 )
@@ -327,7 +327,7 @@ def main() -> None:
     sort_group = parser.add_mutually_exclusive_group()
     sort_group.add_argument("-m", "--modified", action="store_true",
                             help="Sort by ascending file modification datetime instead of version and build "
-                                 "(DANGEROUS!)")
+                                 "(POTENTIALLY DANGEROUS!)")
     sort_group.add_argument("-s", "--size", action="store_true",
                             help="Sort by ascending file size instead of version and build")
     parser.add_argument("-v", "--version", type=str, help=f'Filter images by version')
