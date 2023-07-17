@@ -71,7 +71,7 @@ def parse_image_info(line_source: Iterable) -> Dict[str, Dict[str, Dict[str, Tup
             continue
 
         image_name = image_info[0]
-        image_bytes = image_info[1]
+        image_bytes = int(image_info[1])
         # fromisoformat only supported in Python>=3.7
         image_datetime = datetime.datetime.strptime(f"{image_info[2]}T{image_info[3].split('.')[0]}",
                                                     '%Y-%m-%dT%H:%M:%S')
@@ -188,7 +188,10 @@ def output_global_stats(image_info: Dict[str, Dict[str, Dict[str, Tuple[str, int
     version_count = sum([len(versions) for versions in image_info.values()])
     variant_count = sum(
         [sum([len(variants) for variants in versions.values()]) for versions in image_info.values()])
-    print(f"{len(image_info)} base images, {version_count} versions and {variant_count} variants found")
+    total_gb = round(sum([sum([sum([variant_info[1] for variant_info in variants.values()])
+                               for variants in versions.values()])
+                          for versions in image_info.values()]) / 1073741824, 1)
+    print(f"{len(image_info)} base images, {version_count} versions and {variant_count} variants found in {total_gb}GB")
 
 
 def filter_image_info(image_info_dict: Dict[str, Dict[str, Dict[str, Tuple[str, int, str]]]],
