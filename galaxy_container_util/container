@@ -30,6 +30,16 @@ FieldIndex = IntEnum(
     start=0
 )
 
+# Define field indices for variant info tuple
+VariantFieldIndex = IntEnum(
+    'VariantFieldIndex', [
+        'image_filename',  # str
+        'image_bytes',  # int
+        'image_datetime',  # str - N.B: ISO datetime string, NOT un-serialisable datetime.datetime
+    ],
+    start=0
+)
+
 VERSION = "0.0.2"
 LIST_URL = "https://ae-1704-cvmfs-uat-s3.s3.ap-southeast-2.amazonaws.com/singularity.galaxyproject.org/" \
            "singularity.galaxyproject.org_list.txt"
@@ -70,7 +80,7 @@ def parse_image_info(line_source: Iterable) -> Dict[str, Dict[str, Dict[str, Tup
         if len(image_info) < 4:
             continue
 
-        image_name = image_info[0]
+        image_filename = image_info[0]
         image_bytes = int(image_info[1])
         # fromisoformat only supported in Python>=3.7
         image_datetime = datetime.datetime.strptime(f"{image_info[2]}T{image_info[3].split('.')[0]}",
@@ -82,7 +92,7 @@ def parse_image_info(line_source: Iterable) -> Dict[str, Dict[str, Dict[str, Tup
         image_variant = ""
         match = None
         for regex in NAME_REGEXES:
-            match = re.match(regex, image_name)
+            match = re.match(regex, image_filename)
             if not match:
                 continue
 
@@ -115,7 +125,8 @@ def parse_image_info(line_source: Iterable) -> Dict[str, Dict[str, Dict[str, Tup
         if not image_version_dict:
             image_dict[image_version] = image_version_dict
 
-        image_version_dict[image_variant] = (image_name, image_bytes, image_datetime.isoformat())
+        # Must match VariantFieldIndex enum
+        image_version_dict[image_variant] = (image_filename, image_bytes, image_datetime.isoformat())
 
     return image_info_dict
 
@@ -188,12 +199,12 @@ def output_global_stats(image_info: Dict[str, Dict[str, Dict[str, Tuple[str, int
     version_count = sum([len(versions) for versions in image_info.values()])
     variant_count = sum(
         [sum([len(variants) for variants in versions.values()]) for versions in image_info.values()])
-    total_gb = round(sum([sum([sum([variant_info[1] for variant_info in variants.values()])
+    total_gb = round(sum([sum([sum([variant_info[VariantFieldIndex.image_bytes] for variant_info in variants.values()])
                                for variants in versions.values()])
                           for versions in image_info.values()]) / 1073741824, 1)
-    max_date = max([max([max([variant_info[2] for variant_info in variants.values()])
-                               for variants in versions.values()])
-                          for versions in image_info.values()])
+    max_date = max([max([max([variant_info[VariantFieldIndex.image_datetime] for variant_info in variants.values()])
+                         for variants in versions.values()])
+                    for versions in image_info.values()])
     print(f"{len(image_info)} base images, {version_count} versions and {variant_count} variants "
           f"found in {total_gb}GB. Last modified {max_date}.")
 
@@ -248,9 +259,9 @@ def make_sortable_list(result_info_dict: Dict[str, Dict[str, Dict[str, Tuple[str
                         except AttributeError:
                             image_variant = variant_parts[0]
 
-                image_path = f"/cvmfs/{REPO}/{SUBDIRECTORY}/{variant_values[0]}"
-                image_bytes = variant_values[1]
-                image_datetime = variant_values[2]
+                image_path = f"/cvmfs/{REPO}/{SUBDIRECTORY}/{variant_values[VariantFieldIndex.image_filename]}"
+                image_bytes = variant_values[VariantFieldIndex.image_bytes]
+                image_datetime = variant_values[VariantFieldIndex.image_datetime]
 
                 # Filter by version if supplied
                 if args.version and not re.match(fr'{args.version}($|\..*)', version_string, re.IGNORECASE):
