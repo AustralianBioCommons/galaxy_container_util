@@ -41,13 +41,13 @@ VariantFieldIndex = IntEnum(
 )
 
 VERSION = "0.0.2"
-LIST_URL = "https://ae-1704-cvmfs-uat-s3.s3.ap-southeast-2.amazonaws.com/singularity.galaxyproject.org/" \
+IMAGE_LIST_URL = "https://ae-1704-cvmfs-uat-s3.s3.ap-southeast-2.amazonaws.com/singularity.galaxyproject.org/" \
            "singularity.galaxyproject.org_list.txt"
-REPO = "singularity.galaxyproject.org"
-SUBDIRECTORY = "all"
-COMMANDS = ['avail']
+IMAGE_REPOSITORY = "singularity.galaxyproject.org"
+SUBDIRECTORY = "all"  # Subdirectory of repository to list
+COMMANDS = ['avail']  # Supported "container" commands
 CACHE_JSON_PATH = os.path.join(tempfile.gettempdir(), "singularity.galaxyproject.org_images.json")
-MAX_HOURS = 1
+MAX_CACHE_HOURS = 1  # Maximum age of cache in hours
 INT_STRING_LENGTH = 10  # Number of characters to pad integer sub-versions for sorting
 
 # Regular expressions matching valid name formats in order of descending completeness
@@ -259,7 +259,7 @@ def make_sortable_list(result_info_dict: Dict[str, Dict[str, Dict[str, Tuple[str
                         except AttributeError:
                             image_variant = variant_parts[0]
 
-                image_path = f"/cvmfs/{REPO}/{SUBDIRECTORY}/{variant_values[VariantFieldIndex.image_filename]}"
+                image_path = f"/cvmfs/{IMAGE_REPOSITORY}/{SUBDIRECTORY}/{variant_values[VariantFieldIndex.image_filename]}"
                 image_bytes = variant_values[VariantFieldIndex.image_bytes]
                 image_datetime = variant_values[VariantFieldIndex.image_datetime]
 
@@ -364,13 +364,13 @@ def main() -> None:
         # Default to showing everything if no tool search string provided
         tool_search_strings = args.arguments[1:] or ['*']
 
-        image_dir = f"/cvmfs/{REPO}/{SUBDIRECTORY}"
+        image_dir = f"/cvmfs/{IMAGE_REPOSITORY}/{SUBDIRECTORY}"
 
         image_info = get_image_info(cache_json_path=CACHE_JSON_PATH,
                                     image_dir=image_dir,
-                                    list_url=LIST_URL,
+                                    list_url=IMAGE_LIST_URL,
                                     min_cache_datetime=(
-                                            datetime.datetime.now() - datetime.timedelta(hours=MAX_HOURS)),
+                                            datetime.datetime.now() - datetime.timedelta(hours=MAX_CACHE_HOURS)),
                                     args=args)
         # pprint(image_info)
 
