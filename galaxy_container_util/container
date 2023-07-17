@@ -40,9 +40,9 @@ VariantFieldIndex = IntEnum(
     start=0
 )
 
-VERSION = "0.0.2"
+VERSION = "0.0.3"
 IMAGE_LIST_URL = "https://ae-1704-cvmfs-uat-s3.s3.ap-southeast-2.amazonaws.com/singularity.galaxyproject.org/" \
-           "singularity.galaxyproject.org_list.txt"
+                 "singularity.galaxyproject.org_list.txt"
 IMAGE_REPOSITORY = "singularity.galaxyproject.org"
 SUBDIRECTORY = "all"  # Subdirectory of repository to list
 COMMANDS = ['avail']  # Supported "container" commands
@@ -259,7 +259,8 @@ def make_sortable_list(result_info_dict: Dict[str, Dict[str, Dict[str, Tuple[str
                         except AttributeError:
                             image_variant = variant_parts[0]
 
-                image_path = f"/cvmfs/{IMAGE_REPOSITORY}/{SUBDIRECTORY}/{variant_values[VariantFieldIndex.image_filename]}"
+                image_path = f"/cvmfs/{IMAGE_REPOSITORY}/{SUBDIRECTORY}/" \
+                             f"{variant_values[VariantFieldIndex.image_filename]}"
                 image_bytes = variant_values[VariantFieldIndex.image_bytes]
                 image_datetime = variant_values[VariantFieldIndex.image_datetime]
 
