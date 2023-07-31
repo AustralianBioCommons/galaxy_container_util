@@ -1,7 +1,6 @@
 #!/bin/bash
 # update_repo_list.sh - Update a list of repo contents on s3 on the AARNet UAT stratum 1 CVMFS server
 # N.B: THIS SCRIPT WILL NOT WORK ON A CLIENT SYSTEM - it is included for completeness only
-AWS_CLI_PATH=/usr/local/bin/aws
 
 # Read CVMFS S3 config
 . /etc/cvmfs/s3.conf
@@ -10,6 +9,7 @@ export AWS_ACCESS_KEY_ID="${CVMFS_S3_ACCESS_KEY}"
 export AWS_SECRET_ACCESS_KEY="${CVMFS_S3_SECRET_KEY}"
 export AWS_DEFAULT_REGION="${CVMFS_S3_REGION}"
 
+AWS_CLI_PATH="/usr/local/bin/aws"
 REPO="singularity.galaxyproject.org"
 SUBDIRECTORY="all"
 LISTFILE="/tmp/${REPO}_list.txt"
