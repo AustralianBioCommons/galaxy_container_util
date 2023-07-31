@@ -1,6 +1,7 @@
 #!/bin/bash
 # update_repo_list.sh - Update a list of repo contents on s3 on the AARNet UAT stratum 1 CVMFS server
 # N.B: THIS SCRIPT WILL NOT WORK ON A CLIENT SYSTEM - it is included for completeness only
+AWS_CLI_PATH=/usr/local/bin/aws
 
 # Read CVMFS S3 config
 . /etc/cvmfs/s3.conf
@@ -26,10 +27,10 @@ echo "Updating list at https://${CVMFS_S3_BUCKET}.s3.${CVMFS_S3_REGION}.amazonaw
 ls --full-time -s /cvmfs/${REPO}/${SUBDIRECTORY} | awk '{print $10 " " $6 " " $7 " " $8}' > ${LISTFILE}
 echo "Created file ${LISTFILE}"
 
-aws s3 cp --quiet ${LISTFILE} ${OBJECT}
+${AWS_CLI_PATH} s3 cp --quiet ${LISTFILE} ${OBJECT}
 echo "Copied file ${LISTFILE} to object ${OBJECT}"
 
-aws s3api put-object-acl --bucket ${CVMFS_S3_BUCKET} --key ${KEY} --acl public-read
+${AWS_CLI_PATH} s3api put-object-acl --bucket ${CVMFS_S3_BUCKET} --key ${KEY} --acl public-read
 echo "Object ${OBJECT} made publicly readable"
 
 echo "Updated list can be accessed at https://${CVMFS_S3_BUCKET}.s3.${CVMFS_S3_REGION}.amazonaws.com/${KEY}"
