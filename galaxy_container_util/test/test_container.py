@@ -152,7 +152,7 @@ class ContainerTestCase(unittest.TestCase):
                                                    args=args)
 
         with open(TEST_JSON_PATH) as json_file:
-            test_json_object = json.loads(json_file.read())
+            test_json_object = container.load_image_info_json(json_file.read())
 
         self.assertTrue(self.compare_image_info_dicts_without_dates(image_info_dict, test_json_object))
 
@@ -175,7 +175,7 @@ class ContainerTestCase(unittest.TestCase):
                                                    args=args)
 
         with open(TEST_JSON_PATH) as json_file:
-            test_json_object = json.loads(json_file.read())
+            test_json_object = container.load_image_info_json(json_file.read())
 
         self.assertTrue(self.compare_image_info_dicts_without_dates(image_info_dict, test_json_object))
 
@@ -224,15 +224,16 @@ class ContainerTestCase(unittest.TestCase):
 
     def test_filter_image_info(self):
         with open(TEST_JSON_PATH) as json_file:
-            image_info_dict = json.loads(json_file.read())
+            image_info_dict = container.load_image_info_json(json_file.read())
 
         tool_search_strings = ['samtools']
 
         filtered_image_info = container.filter_image_info(image_info_dict, tool_search_strings)
 
         with open(TEST_FILTERED_JSON_PATH) as json_file:
-            test_json_object = json.loads(json_file.read())
+            test_json_object = container.load_image_info_json(json_file.read())
 
+        self.maxDiff = None
         self.assertEqual(filtered_image_info, test_json_object)
 
     def test_make_sortable_list_by_version(self):
@@ -243,7 +244,7 @@ class ContainerTestCase(unittest.TestCase):
         args.version = '1.2'
 
         with open(TEST_FILTERED_JSON_PATH) as json_file:
-            result_info_dict = json.loads(json_file.read())
+            result_info_dict = container.load_image_info_json(json_file.read())
 
         sort_function = container.get_sort_function(args)
 
