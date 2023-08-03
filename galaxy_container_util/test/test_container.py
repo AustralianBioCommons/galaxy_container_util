@@ -31,34 +31,34 @@ TEST_RECORD = [
 ]
 
 EXPECTED_SORTABLE_LIST = [
-            ('samtools',
-             ['0000000001', '0000000002'],
-             0,
-             '',
-             '1.2',
-             '',
-             5,
-             '2023-06-23T10:08:04',
-             '/cvmfs/singularity.galaxyproject.org/all/samtools:1.2'),
-            ('samtools',
-             ['0000000001', '0000000002'],
-             0,
-             '',
-             '1.2',
-             '0',
-             5,
-             '2023-06-23T10:08:04',
-             '/cvmfs/singularity.galaxyproject.org/all/samtools:1.2-0'),
-            ('samtools',
-             ['0000000001', '0000000002', 'rglab'],
-             0,
-             '',
-             '1.2.rglab',
-             '0',
-             5,
-             '2023-06-23T10:08:04',
-             '/cvmfs/singularity.galaxyproject.org/all/samtools:1.2.rglab--0')
-        ]
+    ('samtools',
+     ['0000000001', '0000000002'],
+     0,
+     '',
+     '1.2',
+     '',
+     5,
+     '2023-06-23T10:08:04',
+     '/cvmfs/singularity.galaxyproject.org/all/samtools:1.2'),
+    ('samtools',
+     ['0000000001', '0000000002'],
+     0,
+     '',
+     '1.2',
+     '0',
+     5,
+     '2023-06-23T10:08:04',
+     '/cvmfs/singularity.galaxyproject.org/all/samtools:1.2-0'),
+    ('samtools',
+     ['0000000001', '0000000002', 'rglab'],
+     0,
+     '',
+     '1.2.rglab',
+     '0',
+     5,
+     '2023-06-23T10:08:04',
+     '/cvmfs/singularity.galaxyproject.org/all/samtools:1.2.rglab--0')
+]
 
 # We need to load the container script without the .py extension as a Python module
 spec = spec_from_loader("container", SourceFileLoader("container", "../container"))
@@ -102,6 +102,19 @@ class ContainerTestCase(unittest.TestCase):
             shutil.rmtree(test_dir_path)
         zipped_test_dir = zipfile.ZipFile(zip_path)
         zipped_test_dir.extractall(path=os.path.dirname(test_dir_path))
+
+    def test_load_image_info_json(self):
+        with open(TEST_JSON_PATH) as json_file:
+            test_json_object = container.load_image_info_json(json_file.read())
+
+        for image_values in test_json_object.values():
+            for version_values in image_values.values():
+                for variant_values in version_values.values():
+                    self.assertEqual(type(variant_values), tuple)
+                    self.assertEqual(len(variant_values), 3)
+                    self.assertEqual(type(variant_values[0]), str)
+                    self.assertEqual(type(variant_values[1]), int)
+                    self.assertEqual(type(variant_values[2]), str)
 
     def test_parse_image_info(self):
         with open(TEST_LIST_PATH) as line_source:
