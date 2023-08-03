@@ -30,6 +30,36 @@ TEST_RECORD = [
     'image_path',
 ]
 
+EXPECTED_SORTABLE_LIST = [
+            ('samtools',
+             ['0000000001', '0000000002'],
+             0,
+             '',
+             '1.2',
+             '',
+             5,
+             '2023-06-23T10:08:04',
+             '/cvmfs/singularity.galaxyproject.org/all/samtools:1.2'),
+            ('samtools',
+             ['0000000001', '0000000002'],
+             0,
+             '',
+             '1.2',
+             '0',
+             5,
+             '2023-06-23T10:08:04',
+             '/cvmfs/singularity.galaxyproject.org/all/samtools:1.2-0'),
+            ('samtools',
+             ['0000000001', '0000000002', 'rglab'],
+             0,
+             '',
+             '1.2.rglab',
+             '0',
+             5,
+             '2023-06-23T10:08:04',
+             '/cvmfs/singularity.galaxyproject.org/all/samtools:1.2.rglab--0')
+        ]
+
 # We need to load the container script without the .py extension as a Python module
 spec = spec_from_loader("container", SourceFileLoader("container", "../container"))
 container = module_from_spec(spec)
@@ -78,11 +108,12 @@ class ContainerTestCase(unittest.TestCase):
             image_info_dict = container.parse_image_info(line_source)
 
         # with open(TEST_JSON_PATH, 'w') as json_file:
-        #     json_file.write(json.dumps(image_info_dict))
+        #     json_file.write(json.dumps(image_info_dict, indent=2))
 
-        with open(TEST_JSON_PATH) as json_file:
-            test_json_object = json.loads(json_file.read())
+        with open(TEST_JSON_PATH, 'r') as json_file:
+            test_json_object = container.load_image_info_json(json_file.read())
 
+        self.maxDiff = None
         self.assertEqual(image_info_dict, test_json_object)
 
     def test_get_image_info_from_cache(self):
@@ -97,8 +128,9 @@ class ContainerTestCase(unittest.TestCase):
                                                    args=args)
 
         with open(TEST_JSON_PATH) as json_file:
-            test_json_object = json.loads(json_file.read())
+            test_json_object = container.load_image_info_json(json_file.read())
 
+        self.maxDiff = None
         self.assertEqual(image_info_dict, test_json_object)
 
     def test_get_image_info_from_dir_expired_cache(self):
@@ -138,7 +170,7 @@ class ContainerTestCase(unittest.TestCase):
 
         image_info_dict = container.get_image_info(cache_json_path=TEMP_JSON_PATH,
                                                    image_dir=TEMP_IMAGE_DIR,
-                                                   list_url=container.LIST_URL,
+                                                   list_url=container.IMAGE_LIST_URL,
                                                    min_cache_datetime=datetime(2000, 1, 1, 0, 0, 0, 0),  # Never expire
                                                    args=args)
 
@@ -160,7 +192,7 @@ class ContainerTestCase(unittest.TestCase):
 
         image_info_dict = container.get_image_info(cache_json_path=TEMP_JSON_PATH,
                                                    image_dir=TEMP_IMAGE_DIR,
-                                                   list_url=container.LIST_URL,
+                                                   list_url=container.IMAGE_LIST_URL,
                                                    min_cache_datetime=datetime.now(),  # Always expire cache
                                                    args=args)
 
@@ -217,37 +249,7 @@ class ContainerTestCase(unittest.TestCase):
 
         sortable_list = container.make_sortable_list(result_info_dict, sort_function, args)
 
-        expected_result = [
-            ('samtools',
-             ['0000000001', '0000000002'],
-             0,
-             '',
-             '1.2',
-             '',
-             '5',
-             '2023-06-23T10:08:04',
-             '/cvmfs/singularity.galaxyproject.org/all/samtools:1.2'),
-            ('samtools',
-             ['0000000001', '0000000002'],
-             0,
-             '',
-             '1.2',
-             '0',
-             '5',
-             '2023-06-23T10:08:04',
-             '/cvmfs/singularity.galaxyproject.org/all/samtools:1.2-0'),
-            ('samtools',
-             ['0000000001', '0000000002', 'rglab'],
-             0,
-             '',
-             '1.2.rglab',
-             '0',
-             '5',
-             '2023-06-23T10:08:04',
-             '/cvmfs/singularity.galaxyproject.org/all/samtools:1.2.rglab--0')
-        ]
-
-        self.assertEqual(sortable_list, expected_result)
+        self.assertEqual(sortable_list, EXPECTED_SORTABLE_LIST)
 
 
 if __name__ == '__main__':

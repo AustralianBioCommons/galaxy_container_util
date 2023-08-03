@@ -12,7 +12,7 @@ import urllib.request
 
 from enum import IntEnum
 
-from typing import Dict, Callable, List, Iterable, Tuple
+from typing import Dict, Callable, List, Iterable, Tuple, TextIO
 
 # Define field indices for sortable image record tuple
 FieldIndex = IntEnum(
@@ -61,6 +61,25 @@ NAME_REGEXES = [re.compile(regex, re.IGNORECASE)
                 ]
 
 RW_ALL = stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH | stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH
+
+
+def load_image_info_json(
+        image_info_json: str) -> Dict[str, Dict[str, Dict[str, Tuple[str, int, str]]]]:
+    """
+    Load JSON string and convert lists read from JSON into tuples
+    :param image_info_json:
+    :return: image_info_dict
+    """
+    return {
+        image_key: {
+            version_key: {
+                variant_key: tuple(variant_values)  # Convert List to Tuple
+                for variant_key, variant_values in version_values.items()
+            }
+            for version_key, version_values in image_values.items()
+        }
+        for image_key, image_values in json.loads(image_info_json).items()
+    }
 
 
 def parse_image_info(line_source: Iterable) -> Dict[str, Dict[str, Dict[str, Tuple[str, int, str]]]]:
@@ -149,7 +168,7 @@ def get_image_info(cache_json_path: str,
         # if not quiet:
         #     print(f"Retrieving cached list from {CACHE_JSON_PATH}")
         with open(cache_json_path) as json_file:
-            return json.loads(json_file.read())
+            return load_image_info_json(json_file.read())
 
     if os.name == 'posix' and os.path.isdir(image_dir):  # Attempt to list CVMFS directory
         if not args.quiet:
