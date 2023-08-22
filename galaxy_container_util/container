@@ -163,8 +163,7 @@ def get_image_info(cache_json_path: str,
                       or datetime.datetime.fromtimestamp(os.path.getmtime(cache_json_path)) <= min_cache_datetime)
 
     # Return cached dict if no forced refresh and cache is not stale
-    if (not args.refresh
-            and not cache_is_stale):
+    if not (args.refresh or cache_is_stale):
         # if not quiet:
         #     print(f"Retrieving cached list from {CACHE_JSON_PATH}")
         with open(cache_json_path) as json_file:

@@ -204,7 +204,7 @@ class ContainerTestCase(unittest.TestCase):
             pass
 
         image_info_dict = container.get_image_info(cache_json_path=TEMP_JSON_PATH,
-                                                   image_dir=TEMP_IMAGE_DIR,
+                                                   image_dir='dummy_dir',
                                                    list_url=container.IMAGE_LIST_URL,
                                                    min_cache_datetime=datetime.now(),  # Always expire cache
                                                    args=args)
